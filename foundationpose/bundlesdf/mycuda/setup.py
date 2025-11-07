@@ -12,6 +12,10 @@ import os,sys
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 from torch.utils.cpp_extension import load
 
+print("ADDED STATEMENTS")
+print(f"Python executable: {sys.executable}")
+print(f"Python version: {sys.version}")
+
 code_dir = os.path.dirname(os.path.realpath(__file__))
 
 

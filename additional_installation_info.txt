@@ -1,0 +1,26 @@
+Things i had to change from README installation:
+
+-> export CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH:/include/eigen3/Eigen"
+this is the correct eigen path
+check echo $CONDA_PREFIX from this the CMAKE_PREFIX should lead to eigen headers
+
+-> cd foundationpose
+-> python -m pip install -r requirements.txt
+also install these because some are missing in the og file
+
+-> CUDA_HOME=/usr/lib/cuda
+-> PATH=$CUDA_HOME/bin:$PATH
+-> LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+only if cuda isnt found
+
+
+Changed Cuda version to 12.2 - installation with run file
+installed drivers manually through sudo apt install
+and then runfile without drivers
+disabled monitor with sudo systemctl stop gdm
+and then ctrl + alt + F3
+
+
+-> export CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:/usr/include/eigen3:/usr/local/include/eigen3:$CONDA_PREFIX/include/eigen3
+
+-> CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH:$CONDA_PREFIX/lib/python3.9/site-packages/pybind11/share/cmake/pybind11 bash foundationpose/build_all_conda.sh
