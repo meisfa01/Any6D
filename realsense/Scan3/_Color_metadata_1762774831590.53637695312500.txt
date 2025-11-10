@@ -1,0 +1,20 @@
+Stream: Color
+Frame Counter: 6487
+Frame Timestamp: 2196749701
+Sensor Timestamp: 2196749618
+Auto Exposure: 1
+Time Of Arrival: 1762774831653
+Backend Timestamp: 1762774831590
+Actual Fps: 14988
+Brightness: 0
+Contrast: 50
+Saturation: 64
+Sharpness: 50
+Auto White Balance Temperature: 1
+Backlight Compensation: 0
+Hue: 0
+Gamma: 300
+Manual White Balance: 4600
+Power Line Frequency: 3
+Low Light Compensation: 0
+Raw Frame Size: 614400

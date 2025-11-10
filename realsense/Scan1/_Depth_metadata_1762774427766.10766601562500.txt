@@ -1,0 +1,23 @@
+Stream: Depth
+Frame Counter: 432
+Frame Timestamp: 1792893420
+Sensor Timestamp: 1792891001
+Actual Exposure: 4839
+Gain Level: 16
+Auto Exposure: 1
+Time Of Arrival: 1762774427823
+Backend Timestamp: 1762774427768
+Actual Fps: 14979
+Frame Laser Power: 150
+Frame Laser Power Mode: 1
+Exposure Priority: 1
+Exposure Roi Left: 80
+Exposure Roi Right: 560
+Exposure Roi Top: 60
+Exposure Roi Bottom: 420
+Frame Emitter Mode: 1
+Raw Frame Size: 614400
+Gpio Input Data: 0
+Sequence Name: 0
+Sequence Id: 0
+Sequence Size: 0

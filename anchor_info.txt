@@ -1,0 +1,11 @@
+Files needed for anchor script:
+
+color.png
+depth.png
+mask.png
+
+gt_pose.txt: ground truth for comparing the results
+
+K.txt: intrinsic camera matrix
+
+the mesh ground truth is read from ycb_model_path instead of anchor_path
