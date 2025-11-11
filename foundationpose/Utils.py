@@ -515,6 +515,44 @@ def visualize_frame_results(color, gt_mesh, est, K, gt_pose, pred_pose, metric, 
   # return final_vis
 
 
+def visualize_estimation(color, K, init_pose, pred_pose, frame_idx, save_path, glctx, obj_name, est_mesh):
+  """
+  Minimal visualization without GT:
+  - Left: input color
+  - Right: render of estimated mesh at pred_pose with axes and silhouette
+  Saves a single concatenated image per frame.
+  """
+  H, W = color.shape[:2]
+
+  # Render estimated mesh
+  ren_img, ren_depth, _ = nvdiffrast_render(
+    K=K,
+    H=H,
+    W=W,
+    mesh=est_mesh,
+    ob_in_cams=torch.tensor(pred_pose[None]).cuda().float(),
+    context='cuda',
+    use_light=True,
+    glctx=glctx,
+    extra={}
+  )
+  ren_img = (ren_img[0] * 255.0).detach().cpu().numpy().astype(np.uint8)
+  ren_depth = ren_depth[0].detach().cpu().numpy()
+  ren_mask = (ren_depth > 0).astype(np.bool_)
+
+  # Overlay axes and silhouette
+  ren_img = draw_xyz_axis(ren_img, ob_in_cam=pred_pose, scale=0.1, K=K, thickness=3, transparency=0, is_input_rgb=True)
+  ren_img = vis_mask_contours(ren_img, ren_mask, color=(255, 1, 154))
+  cv2.putText(ren_img, 'EST Mesh & EST Pose', (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 153, 0), 2, cv2.LINE_AA)
+
+  # Side-by-side with input color
+  vis = np.concatenate([color, ren_img], axis=1)
+  os.makedirs(save_path, exist_ok=True)
+  out_path = os.path.join(save_path, f"{obj_name}_img_{frame_idx:05d}.png")
+  imageio.imwrite(out_path, vis)
+  return out_path
+
+
 def create_coordinate_frame(size=0.1):
   return o3d.geometry.TriangleMesh.create_coordinate_frame(size=size)
 
