@@ -47,7 +47,10 @@ if __name__ == '__main__':
         reader = Ho3dReader(video_dir, data_root)
         reader.color_files = reader.color_files[::running_stride]
 
-        # Load a reference mesh and pose for initialization
+        obj_save_path = os.path.join(save_results_est_path, obj_f)
+        os.makedirs(obj_save_path, exist_ok=True)
+        est.debug_dir = obj_save_path
+
         mesh = trimesh.load(reader.get_reference_view_1_mesh(anchor_path))
         est.reset_object(mesh=mesh, symmetry_tfs=None)
 
@@ -62,7 +65,7 @@ if __name__ == '__main__':
             try:
                 visualize_estimation(color=color, K=reader.K, init_pose=None,
                                      pred_pose=pred_pose_q,
-                                     frame_idx=i, save_path=save_results_est_path, glctx=glctx,
+                                     frame_idx=i, save_path=obj_save_path, glctx=glctx,
                                      obj_name=f"{len(reader.color_files)}_{name}",
                                      est_mesh=est.mesh)
             except Exception as e:
