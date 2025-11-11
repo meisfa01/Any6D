@@ -1,128 +1,173 @@
-import copy
+import os
 
-from foundationpose.datareader import Ho3dReader
-from estimater import *
-from bop_toolkit_lib.pose_error_custom import mssd, mspd, vsd
+import argparse
 
-from metrics import *
-import json
-from bop_toolkit_lib.renderer_vispy import RendererVispy
-from pytorch_lightning import seed_everything
-from datetime import datetime
+import glob
 
-# no ground truth mesh for these objects available, so skip these parts
+import numpy as np
 
-if __name__ == '__main__':
+import cv2
 
-    seed_everything(0)
-    running_stride = 10
+import trimesh
 
-    name = "test_own_dataset_fabian"
-    data_root = "/home/stois/repos/Any6D/datasets/own_dataset"
-    ycbv_modesl_info_path = "/home/stois/repos/Any6D/datasets/own_dataset/models_info.json"
-    anchor_path = "/home/stois/repos/Any6D/results/own_anchors"
+from tqdm import tqdm
+
+import nvdiffrast.torch as dr
+
+from estimater import Any6D
+
+from foundationpose.Utils import visualize_frame_results, align_mesh_to_coordinate
 
 
-    date_str = f'{datetime.now():%Y-%m-%d_%H-%M-%S}'
-    save_root = f"./results/ho3d_results/{name}/{date_str}"
-    save_results_est_path = f'{save_root}'
+def load_intrinsics(k_path: str) -> np.ndarray:
+    K = np.loadtxt(k_path).reshape(3, 3).astype(np.float64)
 
-    os.makedirs(save_results_est_path, exist_ok=True)
+    return K
 
-    obj_folder =[
-        '101_white_cup',
-        '102_green_bottle',
-        '103_casio_calculator'
-        ]
 
-    excel_files = []
+def list_images(folder: str):
+    exts = ("*.png", "*.jpg", "*.jpeg")
+
+    files = []
+
+    for e in exts:
+        files.extend(glob.glob(os.path.join(folder, e)))
+
+    files.sort()
+
+    return files
+
+
+def read_depth(path: str, scale: float = 1000.0) -> np.ndarray:
+    d = cv2.imread(path, cv2.IMREAD_ANYDEPTH)
+
+    if d is None:
+        raise RuntimeError(f"Failed to read depth: {path}")
+
+    d = d.astype(np.float32) / float(scale)
+
+    return d
+
+
+def read_mask(path: str) -> np.ndarray:
+    m = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+
+    if m is None:
+        return None
+
+    if m.ndim == 3:
+        m = m[..., 0]
+
+    return (m > 0).astype(bool)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Estimate poses on a custom sequence without GT mesh/metrics.")
+
+    parser.add_argument("--sequence_root", required=True, help="Path to obj_folder containing rgb/, depth/, meta/K.txt")
+
+    parser.add_argument("--mesh_path", required=True, help="Path to an object mesh .obj to register.")
+
+    parser.add_argument("--mask_dir", required=False, help="Optional dir with binary masks per frame (same ordering).")
+
+    parser.add_argument("--depth_scale", type=float, default=1000.0, help="Scale to convert depth units to meters.")
+
+    parser.add_argument("--stride", type=int, default=1, help="Process every N-th frame.")
+
+    args = parser.parse_args()
+
+    seq_root = args.sequence_root
+
+    rgb_dir = os.path.join(seq_root, "rgb")
+
+    depth_dir = os.path.join(seq_root, "depth")
+
+    meta_dir = os.path.join(seq_root, "meta")
+
+    k_path = os.path.join(meta_dir, "K.txt")
+
+    if not os.path.isfile(k_path):
+        raise FileNotFoundError(f"K.txt not found at: {k_path}")
+
+    K = load_intrinsics(k_path)
+
+    rgb_files = list_images(rgb_dir)
+
+    depth_files = list_images(depth_dir)
+
+    if len(rgb_files) == 0 or len(depth_files) == 0:
+        raise RuntimeError("No rgb/depth images found. Expected rgb/ and depth/ with frames.")
+
+    if len(rgb_files) != len(depth_files):
+        print(
+            f"Warning: rgb ({len(rgb_files)}) and depth ({len(depth_files)}) counts differ. Will pair by sorted order.")
+
+    mask_files = None
+
+    if args.mask_dir:
+
+        mask_files = list_images(args.mask_dir)
+
+        if len(mask_files) == 0:
+            print(f"Warning: no masks found in {args.mask_dir}; will fall back to depth>0 masks.")
+
+            mask_files = None
+
+    # Load or prepare mesh
+
+    mesh = trimesh.load(args.mesh_path)
+
+    mesh = align_mesh_to_coordinate(mesh)
+
+    save_path = seq_root
+
+    obj_name = os.path.basename(os.path.normpath(seq_root))
+
+    os.makedirs(save_path, exist_ok=True)
+
     glctx = dr.RasterizeCudaContext()
-    mesh_tmp = copy.deepcopy(trimesh.primitives.Box(extents=np.ones((3)), transform=np.eye(4)))
-    mesh = trimesh.Trimesh(vertices=mesh_tmp.vertices.copy(), faces= mesh_tmp.faces.copy())
-    est = Any6D(mesh=mesh, scorer=ScorePredictor(), refiner=PoseRefinePredictor(), debug_dir=save_results_est_path, debug=0, glctx=glctx)
 
-    renderer = RendererVispy(640, 480, mode='depth')
-    obj_count = 0
+    est = Any6D(symmetry_tfs=None, mesh=mesh, debug_dir=save_path, debug=1)
 
-    data = []
+    for i in tqdm(range(0, min(len(rgb_files), len(depth_files)), args.stride), desc="Frames"):
 
-    for obj_f in tqdm(obj_folder, desc='Evaluating Object'):
+        rgb_path = rgb_files[i]
 
-        video_dir = os.path.join(f"{data_root}", obj_f)
-        print(video_dir)
-        reader = Ho3dReader(video_dir, data_root)
-        reader.color_files = reader.color_files[::running_stride]
+        depth_path = depth_files[i]
 
-        ob_id = reader.get_obj_id()
+        color = cv2.cvtColor(cv2.imread(rgb_path), cv2.COLOR_BGR2RGB)
 
-        K_anchor = np.loadtxt(reader.get_reference_K(anchor_path))
+        depth = read_depth(depth_path, scale=args.depth_scale)
 
-        gt_diameter = reader.get_gt_mesh_diamter()
-        mesh = trimesh.load(reader.get_reference_view_1_mesh(anchor_path))
+        if mask_files and i < len(mask_files):
 
-        pred_pose_a = np.loadtxt(reader.get_reference_view_1_pose(anchor_path))
-        gt_pose_a = np.loadtxt(reader.get_reference_view_1_pose(anchor_path).replace('initial','gt'))
+            mask = read_mask(mask_files[i])
 
-        est.reset_object(mesh=mesh, symmetry_tfs=None)
+        else:
 
-        for i in tqdm(range(0, len(reader.color_files), 1), desc=f"{obj_f} - Frames"):
-            gt_pose_q = reader.get_gt_pose(i)
+            mask = (depth > 0).astype(bool)
 
-            if gt_pose_q is None:
-                continue
+        pred_pose = est.register_any6d(K=K, rgb=color, depth=depth, ob_mask=mask, iteration=5, name=f"{obj_name}")
 
-            color_file = reader.color_files[i]
-            color = cv2.cvtColor(cv2.imread(color_file), cv2.COLOR_BGR2RGB)
-            H, W = color.shape[:2]
-            depth = reader.get_depth(i)
-            mask = reader.get_mask(i).astype(np.bool_)
-            pred_pose_q = est.register(K=reader.K, rgb=color, depth=depth, ob_mask=mask, iteration=5, name=obj_f)
+        np.savetxt(os.path.join(save_path, f"{obj_name}_pose_{i:05d}.txt"), pred_pose)
 
-            pose_aq = pred_pose_q @ np.linalg.inv(pred_pose_a)  # obtained pose A->Q
-            pred_q = pose_aq @ gt_pose_a
+        try:
+
+            # est_only=True to skip GT panel; output_est=True to suffix _est
+
+            visualize_frame_results(color=color, gt_mesh=None, est=est, K=K,
+
+                                    gt_pose=None, pred_pose=pred_pose, metric=None,
+
+                                    obj_f=obj_name, frame_idx=i, save_path=save_path,
+
+                                    glctx=glctx, name="custom_seq", est_only=True, output_est=True)
+
+        except Exception as e:
+
+            print(f"Visualization failed on frame {i}: {e}")
 
 
-            err_R, err_T = compute_RT_distances(pred_q, gt_pose_q)
-
-            pose_recall_th = [(5, 5), (5, 10), (10, 10)]
-
-            for r_th, t_th in pose_recall_th:
-                succ_r, succ_t = err_R <= r_th, err_T <= t_th
-                succ_pose = np.logical_and(succ_r, succ_t).astype(float)
-
-
-            pred_q, gt_pose_q = pred_q.astype(np.float16), gt_pose_q.astype(np.float16)
-
-            pred_r, pred_t = pred_q[:3, :3], np.expand_dims(pred_q[:3, 3], axis=1) * 1e3
-            gt_r, gt_t = gt_pose_q[:3, :3], np.expand_dims(gt_pose_q[:3, 3], axis=1) * 1e3
-
-            mssd_rec = np.array([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5])
-            mspd_rec = np.array([5, 10, 15, 20, 25, 30, 35, 40, 45, 50])
-
-            vsd_delta = 15.0
-            vsd_taus = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
-            vsd_rec = np.array([0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5])
-
-            vsd_errs = vsd(pred_r, pred_t, gt_r, gt_t, (depth *1e3), reader.K.reshape(3, 3), vsd_delta, vsd_taus, True, (gt_diameter*1e3), renderer, ob_id)
-            vsd_errs = np.asarray(vsd_errs)
-            all_vsd_recs = np.stack([vsd_errs < rec_i for rec_i in vsd_rec], axis=1)
-            mean_vsd = all_vsd_recs.mean()
-
-            mssd_cur_rec = mssd_rec * (gt_diameter * 1e3)
-
-
-            try:
-                visualize_estimation(color=color, K=reader.K, init_pose=gt_pose_q,
-                                           pred_pose=pred_pose_q,
-                                           frame_idx=i, save_path=save_results_est_path, glctx=glctx,
-                                           obj_name=f"{len(reader.color_files)}_{name}",
-                                           est_mesh=est.mesh)
-            except:
-                pass
-            obj_count+=1
-
-    print("Done")
-
-
-
+if __name__ == "__main__":
+    main()
 

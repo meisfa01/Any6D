@@ -14,6 +14,7 @@ from sam2_instantmesh import *
 
 
 # no ground truth mesh for these objects available, so skip these parts
+# currently every object has to be processed individually, processing one folder crashes because of Pytorch error
 
 if __name__=='__main__':
 
