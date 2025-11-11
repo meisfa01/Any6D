@@ -57,12 +57,12 @@ def get_bop_video_dirs(dataset):
 
 
 class Ho3dReader:
-  def __init__(self, video_dir, root_dir='/data/dataset/ho3d/'):
+  def __init__(self, video_dir, root_dir='/datasets/own_dataset/'):
     self.video_dir = video_dir
     self.ho3d_root = root_dir
-    self.color_files = sorted(glob.glob(f"{self.video_dir}/rgb/*.jpg"))
-    meta_file = self.color_files[0].replace('.jpg','.pkl').replace('rgb','meta')
-    self.K = pickle.load(open(meta_file,'rb'))['camMat']
+    self.color_files = sorted(glob.glob(f"{self.video_dir}/rgb/*.png"))
+    meta_file = self.color_files[0].replace('.png','.pkl').replace('rgb','meta')
+    self.K = np.loadtxt(f'{video_dir}/meta/K.txt')
 
     self.id_strs = []
     for i in range(len(self.color_files)):
@@ -70,12 +70,12 @@ class Ho3dReader:
       self.id_strs.append(id)
 
     self.video2name = {
-      'AP10': '019_pitcher_base',
-      'AP11': '019_pitcher_base',
-      'AP': '019_pitcher_base',
-      'MPM': '010_potted_meat_can',
-      'SB': '021_bleach_cleanser',
-      'SM': '006_mustard_bottle',
+        'AP10': '019_pitcher_base',
+        'AP11': '019_pitcher_base',
+        'AP': '019_pitcher_base',
+        'MPM': '010_potted_meat_can',
+        'SB': '021_bleach_cleanser',
+        'SM': '006_mustard_bottle',
     }
 
     self.obj_list = {
@@ -99,6 +99,9 @@ class Ho3dReader:
     if "evaluation" in self.color_files[i]:
       index = int(os.path.basename(self.color_files[i]).split('.')[0])
       mask = cv2.imread(f'{self.ho3d_root}/masks_XMem/{video_name}/{index:05d}.png',-1)
+    if "own_dataset" in self.color_files[1]:
+        index = int(os.path.basename(self.color_files[i]).split('.')[0])
+        mask = cv2.imread(f'{self.ho3d_root}/{video_name}/masks/{index:04d}.png', -1)
     else:
       mask = cv2.imread(f'{self.ho3d_root}/train/{video_name}/seg/{i:04d}.png',-1)[...,1]
       mask = cv2.resize(mask, (mask.shape[1]*2, mask.shape[0]*2), interpolation=cv2.INTER_NEAREST)[..., 1].astype(np.bool_)
@@ -152,7 +155,7 @@ class Ho3dReader:
     return ob_in_cam_gt
 
 
-  def get_gt_mesh(self, model_dir='/home/miruware/ssd_4tb/dataset/ho3d/YCB_Video_Models'):
+  def get_gt_mesh(self, model_dir='/home/stois/repos/Any6D/datasets/ho3d/YCB_Video_Models'):
     mesh = trimesh.load(f'{model_dir}/models/{self.get_video_name_full()}/textured_simple.obj')
     return mesh
 
@@ -167,6 +170,9 @@ class Ho3dReader:
       '003_cracker_box': f'{path}/003_cracker_box/final_mesh_003_cracker_box.obj',
       '004_sugar_box': f'{path}/004_sugar_box/final_mesh_004_sugar_box.obj',
       '005_tomato_soup_can': f'{path}/005_tomato_soup_can/final_mesh_005_tomato_soup_can.obj',
+        '101_white_cup': f'{path}/101_white_cup/mesh_101_white_cup.obj',
+        '102_green_bottle': f'{path}/102_green_bottle/mesh_102_green_bottle.obj',
+        '103_casio_calculator': f'{path}/103_casio_calculator/mesh_103_casio_calculator.obj'
       }
     video_name = obj_list[self.get_video_name_full()]
     return video_name
@@ -203,6 +209,9 @@ class Ho3dReader:
       if video_name.startswith(k):
         ob_name = self.video2name[k]
         break
+
+    if not ob_name:
+        ob_name = video_name
     return ob_name
 
   def get_obj_id(self):

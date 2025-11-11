@@ -138,7 +138,17 @@ def diffusion_image_generation(debug_dir, debug_input_dir, name=None,input_image
 
     device = torch.device('cuda')
     print('Loading diffusion model ...')
-    multiview_diffusion_model = DiffusionPipeline.from_pretrained("sudo-ai/zero123plus-v1.2", custom_pipeline="instantmesh/zero123plus", torch_dtype=torch.float16)
+
+    import os
+    os.environ["DIFFUSERS_NO_ACCELERATE"] = "1"  # ensure accelerate doesn’t map submodules to GPU
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # optional, if multiple GPUs
+
+    multiview_diffusion_model = DiffusionPipeline.from_pretrained(
+        "sudo-ai/zero123plus-v1.2",
+        custom_pipeline="instantmesh/zero123plus",
+        torch_dtype=torch.float16,
+    ).to("cuda")
+
     multiview_diffusion_model.scheduler = EulerAncestralDiscreteScheduler.from_config(multiview_diffusion_model.scheduler.config, timestep_spacing='trailing')
 
     # load custom white-background UNet

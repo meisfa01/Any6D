@@ -17,14 +17,14 @@ from foundationpose.Utils import visualize_estimation
 if __name__ == '__main__':
 
     seed_everything(0)
-    running_stride = 10
+    running_stride = 5
 
     name = "test_own_dataset_fabian"
     data_root = "/home/stois/repos/Any6D/datasets/own_dataset"
     anchor_path = "/home/stois/repos/Any6D/results/own_anchors"
 
     date_str = f'{datetime.now():%Y-%m-%d_%H-%M-%S}'
-    save_root = f"./results/ho3d_results/{name}/{date_str}"
+    save_root = f"./results/own_results/{name}/{date_str}"
     save_results_est_path = f'{save_root}'
 
     os.makedirs(save_results_est_path, exist_ok=True)

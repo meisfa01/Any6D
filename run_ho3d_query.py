@@ -32,6 +32,12 @@ if __name__ == '__main__':
     anchor_path = args.anchor_path
     ycb_model_path = args.ycb_model_path
 
+    # changed
+    name = "test_ycb_fabian"
+    hot3d_data_root = "/home/stois/repos/Any6D/datasets/ho3d"
+    ycb_model_path = "/home/stois/repos/Any6D/datasets/ho3d/YCB_Video_Models"
+    anchor_path = "/home/stois/repos/Any6D/results/existing_any6d_ycb_results"
+
     date_str = f'{datetime.now():%Y-%m-%d_%H-%M-%S}'
     save_root = f"./results/ho3d_results/{name}/{date_str}"
     save_results_est_path = f'{save_root}'

@@ -26,10 +26,16 @@ if __name__=='__main__':
     ycb_model_path = args.ycb_model_path
     img_to_3d = args.img_to_3d
 
+    #anchor_folder = 'results/existing_any6d_ycb_results'
+    anchor_folder = 'results/test_ycb'
+    ycb_model_path = 'datasets/ho3d/YCB_Video_Models'
+    img_to_3d = True
 
     results = []
 
     obj_list = [f for f in os.listdir(anchor_folder) if not f.endswith('.xlsx')]
+
+    print(obj_list)
 
     glctx = dr.RasterizeCudaContext()
 
@@ -48,7 +54,9 @@ if __name__=='__main__':
         elif obj == '010_potted_meat_can':
             obj_num = 9
 
-
+        print('This is the current obj:')
+        print(obj)
+        print(obj_num)
 
         save_path = f'{anchor_folder}/{obj}'
         mesh_path = os.path.join(f'{anchor_folder}/{obj}/mesh_{obj}.obj')
@@ -79,13 +87,13 @@ if __name__=='__main__':
 
         intrinsic = np.loadtxt(f'{anchor_folder}/{obj}/K.txt')
 
-
+        # predicted pose
         pred_pose = est.register_any6d(K=intrinsic, rgb=color, depth=depth, ob_mask=mask, iteration=5, name=f'demo')
 
-
+        # ground truth pose
         gt_pose = np.loadtxt(os.path.join(save_path, f'{obj}_gt_pose.txt'))
 
-
+        # ground truth mesh
         gt_mesh = trimesh.load(f'{ycb_model_path}/models/{obj}/textured_simple.obj')
 
         visualize_frame_results(color=color, gt_mesh=gt_mesh, est=est, K=intrinsic, gt_pose=gt_pose, pred_pose=pred_pose,
@@ -105,6 +113,8 @@ if __name__=='__main__':
             'Object_Number': obj_num,
             'Chamfer_Distance': float(chamfer_dis)
             })
+
+        glctx = dr.RasterizeCudaContext()
 
     df = pd.DataFrame(results)
 
