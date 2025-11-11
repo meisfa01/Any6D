@@ -1,0 +1,19 @@
+Files needed for anchor script:
+
+color.png: does not need to be changed
+
+depth.png: saved in jet color scheme but greyscale expected 
+--> python scripts/depth_to_grayscale.py --input path
+
+mask.png: use cv2 for automatic detection
+--> python scripts/create_mask.py --image path
+
+gt_pose.txt: ground truth for comparing the results
+--> python3 scripts/create_gt_pose_gui.py --image path/to/color.png --K path/to/K.txt
+
+K.txt: intrinsic camera matrix
+--> get K.txt from realsense-viewer by exporting the config and look for the right depth resolution in there.
+
+
+
+the mesh ground truth is read from ycb_model_path instead of anchor_path
